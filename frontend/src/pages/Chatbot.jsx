@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Send, Bot, User, Sparkles, RotateCcw } from 'lucide-react'
+import { Send, Bot, User, RotateCcw } from 'lucide-react'
+import toast from 'react-hot-toast'
+import api from '../utils/api'
 
 const SUGGESTIONS = [
   "How can I improve my placement chances?",
@@ -12,10 +14,7 @@ const SUGGESTIONS = [
 
 export default function Chatbot() {
   const [messages, setMessages] = useState([
-    {
-      role: 'assistant',
-      content: "Hi! 👋 I'm PlaceAI Assistant. I can help you with placement preparation, career advice, interview tips, and resume guidance. What would you like to know?"
-    }
+    { role: 'assistant', content: "Hi! 👋 I'm PlaceAI Assistant. I can help you with placement preparation, career advice, interview tips, and resume guidance. What would you like to know?" }
   ])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -29,39 +28,21 @@ export default function Chatbot() {
     const userMsg = text || input.trim()
     if (!userMsg) return
     setInput('')
-    setMessages(prev => [...prev, { role: 'user', content: userMsg }])
+    const newMessages = [...messages, { role: 'user', content: userMsg }]
+    setMessages(newMessages)
     setLoading(true)
 
     try {
-      const history = messages.map(m => ({ role: m.role, content: m.content }))
-      history.push({ role: 'user', content: userMsg })
-
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
-          system: `You are PlaceAI Assistant, an expert career counselor specializing in campus placements in India. 
-You help students with:
-- Placement preparation strategies
-- Interview tips (technical + HR)
-- Resume building advice
-- Skill development roadmaps
-- Career guidance for IT/CS students
-- CGPA, internship, project advice
-
-Keep responses concise, practical, and encouraging. Use bullet points when helpful. 
-Always be positive and motivating. Mention specific actionable steps.`,
-          messages: history
-        })
+      const res = await api.post('/api/ai/chat', {
+        messages: newMessages,
+        system: `You are PlaceAI Assistant, an expert career counselor specializing in campus placements in India. 
+Help students with placement preparation, interview tips, resume advice, and career guidance. 
+Be concise, practical and encouraging. Use bullet points when helpful.`
       })
-
-      const data = await res.json()
-      const reply = data.content?.[0]?.text || "Sorry, I couldn't process that. Please try again!"
-      setMessages(prev => [...prev, { role: 'assistant', content: reply }])
+      setMessages(prev => [...prev, { role: 'assistant', content: res.data.reply }])
     } catch (err) {
-      setMessages(prev => [...prev, { role: 'assistant', content: "Sorry, something went wrong. Please try again!" }])
+      toast.error('AI is unavailable right now. Try again!')
+      setMessages(prev => [...prev, { role: 'assistant', content: "Sorry, I'm having trouble right now. Please try again in a moment!" }])
     } finally {
       setLoading(false)
     }
@@ -85,7 +66,6 @@ Always be positive and motivating. Mention specific actionable steps.`,
         </button>
       </div>
 
-      {/* Chat window */}
       <div className="card" style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', padding: 0 }}>
         <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
           {messages.map((msg, i) => (
@@ -106,7 +86,8 @@ Always be positive and motivating. Mention specific actionable steps.`,
                 background: msg.role === 'user' ? 'var(--accent)' : 'var(--bg3)',
                 borderBottomRightRadius: msg.role === 'user' ? 4 : 12,
                 borderBottomLeftRadius: msg.role === 'assistant' ? 4 : 12,
-                fontSize: '0.9rem', lineHeight: 1.6, color: msg.role === 'user' ? 'white' : 'var(--text)',
+                fontSize: '0.9rem', lineHeight: 1.6,
+                color: msg.role === 'user' ? 'white' : 'var(--text)',
                 whiteSpace: 'pre-wrap'
               }}>
                 {msg.content}
@@ -132,7 +113,6 @@ Always be positive and motivating. Mention specific actionable steps.`,
           <div ref={bottomRef} />
         </div>
 
-        {/* Suggestions */}
         {messages.length === 1 && (
           <div style={{ padding: '0 20px 12px', display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {SUGGESTIONS.map((s, i) => (
@@ -151,7 +131,6 @@ Always be positive and motivating. Mention specific actionable steps.`,
           </div>
         )}
 
-        {/* Input */}
         <div style={{ padding: '16px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: 10 }}>
           <input
             value={input}
@@ -170,12 +149,7 @@ Always be positive and motivating. Mention specific actionable steps.`,
         </div>
       </div>
 
-      <style>{`
-        @keyframes bounce {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-5px); }
-        }
-      `}</style>
+      <style>{`@keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }`}</style>
     </div>
   )
 }

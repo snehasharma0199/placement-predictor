@@ -1,7 +1,8 @@
 import React, { useState } from 'react'
-import { Mic, DollarSign, Lightbulb, ChevronRight, Star } from 'lucide-react'
+import { Mic, DollarSign, Lightbulb } from 'lucide-react'
+import toast from 'react-hot-toast'
+import api from '../utils/api'
 
-// --- Interview Readiness Checker ---
 function InterviewChecker() {
   const [answers, setAnswers] = useState({})
   const [result, setResult] = useState(null)
@@ -11,7 +12,7 @@ function InterviewChecker() {
     { id: 'dsa', label: 'DSA & Coding (Arrays, Trees, DP)' },
     { id: 'os', label: 'OS, DBMS, CN concepts' },
     { id: 'project', label: 'Can explain your projects confidently' },
-    { id: 'hr', label: 'HR questions (Tell me about yourself, strengths/weaknesses)' },
+    { id: 'hr', label: 'HR questions (Tell me about yourself)' },
     { id: 'aptitude', label: 'Aptitude & Logical Reasoning' },
     { id: 'communication', label: 'English communication skills' },
     { id: 'resume', label: 'Resume is up to date and clean' },
@@ -21,28 +22,13 @@ function InterviewChecker() {
   const analyze = async () => {
     setLoading(true)
     try {
-      const summary = questions.map(q => `${q.label}: ${answers[q.id] || 'Not Ready'}`).join('\n')
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 800,
-          system: `You are an interview coach. Return ONLY JSON:
-{
-  "readiness_score": <0-100>,
-  "level": "<Ready/Almost Ready/Needs Preparation>",
-  "top_focus": ["<area1>", "<area2>", "<area3>"],
-  "tips": ["<tip1>", "<tip2>", "<tip3>"],
-  "message": "<motivational 1-2 sentence message>"
-}`,
-          messages: [{ role: 'user', content: `Student's interview readiness:\n${summary}` }]
-        })
+      const summary = questions.map(q => `${q.label}: ${answers[q.id] || 'Not Started'}`).join('\n')
+      const res = await api.post('/api/ai/analyze', {
+        text: `Student interview readiness:\n${summary}`,
+        task: 'interview'
       })
-      const data = await res.json()
-      const clean = data.content?.[0]?.text?.replace(/```json|```/g, '').trim()
-      setResult(JSON.parse(clean))
-    } catch { setResult({ readiness_score: 50, level: 'Needs Preparation', top_focus: [], tips: ['Try again'], message: 'Keep preparing!' }) }
+      setResult(res.data)
+    } catch { toast.error('Try again!') }
     finally { setLoading(false) }
   }
 
@@ -53,9 +39,9 @@ function InterviewChecker() {
     <div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
         {questions.map(q => (
-          <div key={q.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-            <span style={{ fontSize: '0.85rem', color: 'var(--text2)', flex: 1 }}>{q.label}</span>
-            <div style={{ display: 'flex', gap: 6 }}>
+          <div key={q.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '0.85rem', color: 'var(--text2)', flex: 1, minWidth: 180 }}>{q.label}</span>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {options.map(opt => (
                 <button key={opt} onClick={() => setAnswers({ ...answers, [q.id]: opt })}
                   style={{
@@ -63,8 +49,7 @@ function InterviewChecker() {
                     border: '1px solid', fontFamily: 'var(--font-body)',
                     borderColor: answers[q.id] === opt ? colors[opt] : 'var(--border)',
                     background: answers[q.id] === opt ? `${colors[opt]}20` : 'transparent',
-                    color: answers[q.id] === opt ? colors[opt] : 'var(--text3)',
-                    transition: 'all 0.15s'
+                    color: answers[q.id] === opt ? colors[opt] : 'var(--text3)', transition: 'all 0.15s'
                   }}>
                   {opt}
                 </button>
@@ -85,10 +70,8 @@ function InterviewChecker() {
               <div style={{ fontSize: 40, fontWeight: 700, color: 'var(--accent2)', fontFamily: 'var(--font-mono)' }}>{result.readiness_score}%</div>
               <div style={{ fontSize: '0.8rem', color: 'var(--text3)' }}>Readiness Score</div>
             </div>
-            <div style={{ background: 'var(--bg3)', borderRadius: 10, padding: 16, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-              <div style={{ fontWeight: 600, color: result.level === 'Ready' ? 'var(--green)' : result.level === 'Almost Ready' ? 'var(--yellow)' : 'var(--red)' }}>
-                {result.level}
-              </div>
+            <div style={{ background: 'var(--bg3)', borderRadius: 10, padding: 16 }}>
+              <div style={{ fontWeight: 600, color: result.level === 'Ready' ? 'var(--green)' : result.level === 'Almost Ready' ? 'var(--yellow)' : 'var(--red)' }}>{result.level}</div>
               <p style={{ fontSize: '0.82rem', color: 'var(--text2)', marginTop: 6, lineHeight: 1.4 }}>{result.message}</p>
             </div>
           </div>
@@ -108,7 +91,6 @@ function InterviewChecker() {
   )
 }
 
-// --- Package Predictor ---
 function PackagePredictor() {
   const [form, setForm] = useState({ cgpa: 7.5, college_tier: 'Tier 2', branch: 'CSE', internships: 1, skills: '', projects: 2 })
   const [result, setResult] = useState(null)
@@ -117,27 +99,12 @@ function PackagePredictor() {
   const predict = async () => {
     setLoading(true)
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 600,
-          system: `You are a salary prediction expert for Indian IT campus placements. Return ONLY JSON:
-{
-  "min_package": "<X LPA>",
-  "max_package": "<Y LPA>",
-  "expected_package": "<Z LPA>",
-  "companies": ["<company1>", "<company2>", "<company3>"],
-  "tips_to_increase": ["<tip1>", "<tip2>"]
-}`,
-          messages: [{ role: 'user', content: `Predict package for: ${JSON.stringify(form)}` }]
-        })
+      const res = await api.post('/api/ai/analyze', {
+        text: `Predict package for Indian IT student: ${JSON.stringify(form)}`,
+        task: 'package'
       })
-      const data = await res.json()
-      const clean = data.content?.[0]?.text?.replace(/```json|```/g, '').trim()
-      setResult(JSON.parse(clean))
-    } catch { setResult(null) }
+      setResult(res.data)
+    } catch { toast.error('Try again!') }
     finally { setLoading(false) }
   }
 
@@ -151,30 +118,27 @@ function PackagePredictor() {
         ].map(f => (
           <div className="input-group" key={f.key}>
             <label>{f.label}</label>
-            <input type={f.type} name={f.key} min={f.min} max={f.max} step={f.step}
+            <input type={f.type} min={f.min} max={f.max} step={f.step}
               value={form[f.key]} onChange={e => setForm({ ...form, [f.key]: e.target.value })} />
           </div>
         ))}
-        <div className="input-group">
-          <label>College Tier</label>
-          <select value={form.college_tier} onChange={e => setForm({ ...form, college_tier: e.target.value })}
-            style={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 8, padding: '12px 16px', color: 'var(--text)', fontFamily: 'var(--font-body)', fontSize: '0.95rem', outline: 'none' }}>
-            {['IIT/NIT', 'Tier 1', 'Tier 2', 'Tier 3'].map(t => <option key={t}>{t}</option>)}
-          </select>
-        </div>
-        <div className="input-group">
-          <label>Branch</label>
-          <select value={form.branch} onChange={e => setForm({ ...form, branch: e.target.value })}
-            style={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 8, padding: '12px 16px', color: 'var(--text)', fontFamily: 'var(--font-body)', fontSize: '0.95rem', outline: 'none' }}>
-            {['CSE', 'IT', 'ECE', 'EEE', 'ME', 'CE'].map(b => <option key={b}>{b}</option>)}
-          </select>
-        </div>
+        {[
+          { key: 'college_tier', label: 'College Tier', opts: ['IIT/NIT', 'Tier 1', 'Tier 2', 'Tier 3'] },
+          { key: 'branch', label: 'Branch', opts: ['CSE', 'IT', 'ECE', 'EEE', 'ME', 'CE'] },
+        ].map(f => (
+          <div className="input-group" key={f.key}>
+            <label>{f.label}</label>
+            <select value={form[f.key]} onChange={e => setForm({ ...form, [f.key]: e.target.value })}
+              style={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 8, padding: '12px 16px', color: 'var(--text)', fontFamily: 'var(--font-body)', fontSize: '0.95rem', outline: 'none' }}>
+              {f.opts.map(o => <option key={o}>{o}</option>)}
+            </select>
+          </div>
+        ))}
       </div>
       <div className="input-group" style={{ marginBottom: 16 }}>
-        <label>Key Skills (comma separated)</label>
+        <label>Key Skills</label>
         <input value={form.skills} onChange={e => setForm({ ...form, skills: e.target.value })} placeholder="Python, React, ML, DSA..." />
       </div>
-
       <button className="btn btn-primary" onClick={predict} disabled={loading} style={{ marginBottom: 16 }}>
         {loading ? <span className="spinner" /> : <><DollarSign size={15} /> Predict Package</>}
       </button>
@@ -209,7 +173,6 @@ function PackagePredictor() {
   )
 }
 
-// --- Skill Recommendations ---
 function SkillRecommender() {
   const [branch, setBranch] = useState('CSE')
   const [goal, setGoal] = useState('Software Developer')
@@ -219,49 +182,31 @@ function SkillRecommender() {
   const getRecommendations = async () => {
     setLoading(true)
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 800,
-          system: `Return ONLY JSON skill roadmap:
-{
-  "must_have": ["<skill1>", "<skill2>", "<skill3>", "<skill4>"],
-  "good_to_have": ["<skill1>", "<skill2>", "<skill3>"],
-  "projects_to_build": ["<project1>", "<project2>", "<project3>"],
-  "certifications": ["<cert1>", "<cert2>"],
-  "timeline": "<X months roadmap summary>"
-}`,
-          messages: [{ role: 'user', content: `Skills for ${branch} student targeting ${goal} role in India` }]
-        })
+      const res = await api.post('/api/ai/analyze', {
+        text: `Skills roadmap for ${branch} student targeting ${goal} role in India`,
+        task: 'skills'
       })
-      const data = await res.json()
-      const clean = data.content?.[0]?.text?.replace(/```json|```/g, '').trim()
-      setResult(JSON.parse(clean))
-    } catch { setResult(null) }
+      setResult(res.data)
+    } catch { toast.error('Try again!') }
     finally { setLoading(false) }
   }
 
   return (
     <div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
-        <div className="input-group">
-          <label>Your Branch</label>
-          <select value={branch} onChange={e => setBranch(e.target.value)}
-            style={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 8, padding: '12px 16px', color: 'var(--text)', fontFamily: 'var(--font-body)', fontSize: '0.95rem', outline: 'none' }}>
-            {['CSE', 'IT', 'ECE', 'EEE', 'ME', 'CE', 'MCA', 'BCA'].map(b => <option key={b}>{b}</option>)}
-          </select>
-        </div>
-        <div className="input-group">
-          <label>Target Role</label>
-          <select value={goal} onChange={e => setGoal(e.target.value)}
-            style={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 8, padding: '12px 16px', color: 'var(--text)', fontFamily: 'var(--font-body)', fontSize: '0.95rem', outline: 'none' }}>
-            {['Software Developer', 'Data Scientist', 'ML Engineer', 'DevOps Engineer', 'Full Stack Developer', 'Cybersecurity Analyst', 'Cloud Engineer'].map(r => <option key={r}>{r}</option>)}
-          </select>
-        </div>
+        {[
+          { label: 'Your Branch', val: branch, set: setBranch, opts: ['CSE', 'IT', 'ECE', 'EEE', 'ME', 'CE', 'MCA', 'BCA'] },
+          { label: 'Target Role', val: goal, set: setGoal, opts: ['Software Developer', 'Data Scientist', 'ML Engineer', 'DevOps Engineer', 'Full Stack Developer', 'Cybersecurity Analyst', 'Cloud Engineer'] },
+        ].map(f => (
+          <div className="input-group" key={f.label}>
+            <label>{f.label}</label>
+            <select value={f.val} onChange={e => f.set(e.target.value)}
+              style={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 8, padding: '12px 16px', color: 'var(--text)', fontFamily: 'var(--font-body)', fontSize: '0.95rem', outline: 'none' }}>
+              {f.opts.map(o => <option key={o}>{o}</option>)}
+            </select>
+          </div>
+        ))}
       </div>
-
       <button className="btn btn-primary" onClick={getRecommendations} disabled={loading} style={{ marginBottom: 16 }}>
         {loading ? <span className="spinner" /> : <><Lightbulb size={15} /> Get Roadmap</>}
       </button>
@@ -269,7 +214,7 @@ function SkillRecommender() {
       {result && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, animation: 'fadeUp 0.4s ease' }}>
           <div style={{ background: 'var(--bg3)', borderRadius: 10, padding: 14 }}>
-            <div style={{ fontWeight: 600, marginBottom: 8, fontSize: '0.85rem', color: 'var(--accent2)' }}>⭐ Must Have Skills</div>
+            <div style={{ fontWeight: 600, marginBottom: 8, fontSize: '0.85rem', color: 'var(--accent2)' }}>⭐ Must Have</div>
             {result.must_have?.map((s, i) => <div key={i} className="badge badge-purple" style={{ display: 'block', marginBottom: 6, textAlign: 'center' }}>{s}</div>)}
           </div>
           <div style={{ background: 'var(--bg3)', borderRadius: 10, padding: 14 }}>
@@ -277,7 +222,7 @@ function SkillRecommender() {
             {result.good_to_have?.map((s, i) => <div key={i} className="badge badge-green" style={{ display: 'block', marginBottom: 6, textAlign: 'center' }}>{s}</div>)}
           </div>
           <div style={{ background: 'var(--bg3)', borderRadius: 10, padding: 14 }}>
-            <div style={{ fontWeight: 600, marginBottom: 8, fontSize: '0.85rem', color: 'var(--yellow)' }}>🚀 Projects to Build</div>
+            <div style={{ fontWeight: 600, marginBottom: 8, fontSize: '0.85rem', color: 'var(--yellow)' }}>🚀 Projects</div>
             {result.projects_to_build?.map((p, i) => <div key={i} style={{ fontSize: '0.82rem', color: 'var(--text2)', marginBottom: 6 }}>• {p}</div>)}
           </div>
           <div style={{ background: 'var(--bg3)', borderRadius: 10, padding: 14 }}>
@@ -295,7 +240,6 @@ function SkillRecommender() {
   )
 }
 
-// --- Main Tools Page ---
 const TOOLS = [
   { id: 'interview', icon: '🎤', label: 'Interview Readiness', desc: 'Check how prepared you are', component: InterviewChecker },
   { id: 'package', icon: '💰', label: 'Package Predictor', desc: 'Estimate your salary range', component: PackagePredictor },
@@ -314,7 +258,6 @@ export default function Tools() {
         <p style={{ color: 'var(--text2)', fontSize: '0.88rem', marginTop: 2 }}>Powerful tools to boost your placement preparation</p>
       </div>
 
-      {/* Tool tabs */}
       <div style={{ display: 'flex', gap: 12, marginBottom: 24, flexWrap: 'wrap' }}>
         {TOOLS.map(t => (
           <button key={t.id} onClick={() => setActive(t.id)} style={{
@@ -323,8 +266,7 @@ export default function Tools() {
             borderColor: active === t.id ? 'var(--accent)' : 'var(--border)',
             background: active === t.id ? 'rgba(124,106,255,0.12)' : 'var(--bg2)',
             color: active === t.id ? 'var(--accent2)' : 'var(--text2)',
-            fontFamily: 'var(--font-body)', fontWeight: 500, fontSize: '0.9rem',
-            transition: 'all 0.15s'
+            fontFamily: 'var(--font-body)', fontWeight: 500, fontSize: '0.9rem', transition: 'all 0.15s'
           }}>
             <span>{t.icon}</span>
             <div style={{ textAlign: 'left' }}>
