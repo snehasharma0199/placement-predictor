@@ -1,11 +1,11 @@
-from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from contextlib import asynccontextmanager
 import uvicorn
 
 from routes.auth import router as auth_router
 from routes.predict import router as predict_router
+from routes.ai import router as ai_router
 from database import connect_db, disconnect_db
 
 @asynccontextmanager
@@ -23,7 +23,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with your Netlify URL
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -31,6 +31,7 @@ app.add_middleware(
 
 app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(predict_router, prefix="/api/predict", tags=["Prediction"])
+app.include_router(ai_router, prefix="/api/ai", tags=["AI"])
 
 @app.get("/")
 async def root():
